@@ -1,0 +1,378 @@
+// Prisma Schema for Masjid Transparency App
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// Enums
+// ==========================================
+
+enum UserRole {
+  ADMIN
+  VOLUNTEER
+  DONOR
+  VIEWER
+}
+
+enum MosqueType {
+  PRIVATE
+  TRUST
+  WAQF_BOARD
+  COMMITTEE
+}
+
+enum StaffRole {
+  IMAM
+  MUAZZIN
+  KHADIM
+  NAIB_IMAM
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+  PARTIAL
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  UPI
+  CHEQUE
+  ONLINE
+}
+
+enum ExpenseCategory {
+  SALARY
+  UTILITIES
+  MAINTENANCE
+  CONSTRUCTION
+  EVENTS
+  MISCELLANEOUS
+}
+
+enum BillType {
+  ELECTRICITY
+  WATER
+  GAS
+  INTERNET
+  PHONE
+  OTHER
+}
+
+enum BillStatus {
+  PAID
+  UNPAID
+  OVERDUE
+}
+
+enum IncomeSource {
+  DONATION
+  RENTAL
+  LAND
+  GOVERNMENT_AID
+  TRUST_FUND
+  OTHER
+}
+
+enum PropertyCategory {
+  LAND
+  SHOP
+  HALL
+  RESIDENTIAL
+  AGRICULTURAL
+  COMMERCIAL
+}
+
+enum AreaUnit {
+  SQFT
+  SQMETER
+  ACRE
+  BIGHA
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+// ==========================================
+// Models
+// ==========================================
+
+/// Registered users — admins, volunteers, donors, and viewers
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  phone        String?
+  passwordHash String
+  role         UserRole   @default(VIEWER)
+  area         String?
+  city         String?
+  state        String?
+  isVerified   Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relations
+  donations    Donation[]
+  managedMosques Mosque[]  @relation("MosqueManagedBy")
+  auditLogs    AuditLog[]
+
+  @@index([email])
+  @@index([city, state])
+}
+
+/// Mosque — core entity with all details
+model Mosque {
+  id                String      @id @default(cuid())
+  name              String
+  nameUrdu          String?
+  address           String
+  city              String
+  state             String
+  pinCode           String
+  latitude          Float?
+  longitude         Float?
+  type              MosqueType  @default(COMMITTEE)
+  capacity          Int?
+  constructionYear  Int?
+  description       String?     @db.Text
+  photos            String[]
+  transparencyScore Int         @default(0)
+  isVerified        Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Managed by volunteer
+  managedById       String?
+  managedBy         User?       @relation("MosqueManagedBy", fields: [managedById], references: [id])
+
+  // Relations
+  expenses          Expense[]
+  bills             Bill[]
+  incomes           Income[]
+  properties        Property[]
+  donations         Donation[]
+  staff             MosqueStaff[]
+  bankAccount       BankAccount?
+  mutawalli         Mutawalli?
+
+  @@index([city])
+  @@index([state])
+  @@index([pinCode])
+  @@index([city, state])
+  @@index([type])
+}
+
+/// Mosque staff — Imam, Muazzin, Khadim, Naib Imam
+model MosqueStaff {
+  id              String    @id @default(cuid())
+  mosqueId        String
+  name            String
+  phone           String?
+  email           String?
+  photoUrl        String?
+  role            StaffRole
+  qualification   String?
+  experienceYears Int?
+  appointedDate   DateTime
+  previousMosque  String?
+  monthlySalary   Float
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  mosque          Mosque    @relation(fields: [mosqueId], references: [id], onDelete: Cascade)
+  salaryPayments  SalaryPayment[]
+
+  @@index([mosqueId])
+  @@index([role])
+}
+
+/// Monthly salary payment records for mosque staff
+model SalaryPayment {
+  id            String         @id @default(cuid())
+  staffId       String
+  amount        Float
+  month         Int            // 1-12
+  year          Int
+  status        PaymentStatus  @default(UNPAID)
+  paymentDate   DateTime?
+  paymentMethod PaymentMethod?
+  proofUrl      String?
+  notes         String?
+  createdAt     DateTime       @default(now())
+
+  // Relations
+  staff         MosqueStaff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, month, year])
+  @@index([staffId])
+  @@index([status])
+}
+
+/// Expense records for mosque operations
+model Expense {
+  id          String          @id @default(cuid())
+  mosqueId    String
+  category    ExpenseCategory
+  amount      Float
+  description String
+  receiptUrl  String?
+  expenseDate DateTime
+  isPaid      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Relations
+  mosque      Mosque          @relation(fields: [mosqueId], references: [id], onDelete: Cascade)
+
+  @@index([mosqueId])
+  @@index([category])
+  @@index([expenseDate])
+}
+
+/// Recurring utility and service bills
+model Bill {
+  id         String     @id @default(cuid())
+  mosqueId   String
+  billType   BillType
+  amount     Float
+  billDate   DateTime
+  dueDate    DateTime
+  status     BillStatus @default(UNPAID)
+  paidDate   DateTime?
+  receiptUrl String?
+  createdAt  DateTime   @default(now())
+
+  // Relations
+  mosque     Mosque     @relation(fields: [mosqueId], references: [id], onDelete: Cascade)
+
+  @@index([mosqueId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+/// Income records from various sources
+model Income {
+  id          String       @id @default(cuid())
+  mosqueId    String
+  source      IncomeSource
+  amount      Float
+  description String
+  incomeDate  DateTime
+  createdAt   DateTime     @default(now())
+
+  // Relations
+  mosque      Mosque       @relation(fields: [mosqueId], references: [id], onDelete: Cascade)
+
+  @@index([mosqueId])
+  @@index([source])
+}
+
+/// Properties owned by or associated with the mosque
+model Property {
+  id            String           @id @default(cuid())
+  mosqueId      String
+  type          PropertyCategory
+  area          Float
+  areaUnit      AreaUnit         @default(SQFT)
+  location      String
+  description   String?
+  legalStatus   String?
+  monthlyIncome Float            @default(0)
+  documentUrls  String[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  mosque        Mosque           @relation(fields: [mosqueId], references: [id], onDelete: Cascade)
+
+  @@index([mosqueId])
+}
+
+/// Donations received by the mosque
+model Donation {
+  id            String        @id @default(cuid())
+  mosqueId      String
+  donorId       String?
+  amount        Float
+  isAnonymous   Boolean       @default(false)
+  transactionId String?
+  method        PaymentMethod @default(CASH)
+  message       String?
+  donatedAt     DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+
+  // Relations
+  mosque        Mosque        @relation(fields: [mosqueId], references: [id], onDelete: Cascade)
+  donor         User?         @relation(fields: [donorId], references: [id], onDelete: SetNull)
+
+  @@index([mosqueId])
+  @@index([donorId])
+  @@index([donatedAt])
+}
+
+/// Bank account details for mosque donations
+model BankAccount {
+  id                String   @id @default(cuid())
+  mosqueId          String   @unique
+  bankName          String
+  accountNumber     String
+  ifscCode          String
+  accountHolderName String
+  upiId             String?
+  qrCodeUrl         String?
+  isVerified        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  mosque            Mosque   @relation(fields: [mosqueId], references: [id], onDelete: Cascade)
+}
+
+/// Mutawalli (trustee/administrator) of the mosque
+model Mutawalli {
+  id        String   @id @default(cuid())
+  mosqueId  String   @unique
+  name      String
+  phone     String
+  email     String?
+  address   String?
+  sinceDate DateTime
+  photoUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  mosque    Mosque   @relation(fields: [mosqueId], references: [id], onDelete: Cascade)
+}
+
+/// Audit log for tracking all changes in the system
+model AuditLog {
+  id         String      @id @default(cuid())
+  entityType String
+  entityId   String
+  action     AuditAction
+  changes    Json
+  userId     String
+  createdAt  DateTime    @default(now())
+
+  // Relations
+  user       User        @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
