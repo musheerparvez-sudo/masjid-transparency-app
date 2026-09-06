@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { LogIn } from 'lucide-react';
+import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -11,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,9 +23,20 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     setError('');
-    await new Promise((r) => setTimeout(r, 1500));
+
+    const result = await signIn('credentials', {
+      email,
+      password,
+      redirect: false,
+    });
+
     setIsLoading(false);
-    setError('Login functionality will be available after database setup');
+
+    if (result?.error) {
+      setError('Invalid email or password. Try: admin@masjidguard.org / admin123');
+    } else {
+      router.push('/volunteer/dashboard');
+    }
   };
 
   return (
@@ -56,6 +70,13 @@ export default function LoginPage() {
                 {error}
               </div>
             )}
+
+            {/* Demo credentials hint */}
+            <div className="bg-blue-50 text-blue-700 text-xs px-4 py-3 rounded-lg">
+              <p className="font-medium mb-1">Demo Credentials:</p>
+              <p>Admin: admin@masjidguard.org / admin123</p>
+              <p>Volunteer: volunteer@masjidguard.org / volunteer123</p>
+            </div>
 
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm text-gray-600">

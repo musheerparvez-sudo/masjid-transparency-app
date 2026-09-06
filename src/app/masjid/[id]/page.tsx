@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { FinancialSummary } from '@/components/FinancialSummary';
 import { StaffCard } from '@/components/StaffCard';
 import { formatCurrency, formatDate, getScoreBgColor } from '@/lib/utils';
+import FinancialCharts from '@/components/FinancialCharts';
+import { MosqueMap } from '@/components/MosqueMap';
 
 // ===== MOCK DATA =====
 const mockMosque = {
@@ -28,7 +30,7 @@ const mockMosque = {
   transparencyScore: 85,
   isVerified: true,
   description:
-    'Jama Masjid Al-Falah ek mashhoor masjid hai jo 1985 mein ta'meer hui. Yahan 500 namazion ki gunjaish hai aur har namaz ke waqt badi tadaad mein log aate hain.',
+    'Jama Masjid Al-Falah ek mashhoor masjid hai jo 1985 mein ta\'meer hui. Yahan 500 namazion ki gunjaish hai aur har namaz ke waqt badi tadaad mein log aate hain.',
 };
 
 const mockMutawalli = {
@@ -277,12 +279,14 @@ export default function MasjidProfilePage() {
                   </div>
                 </div>
 
-                {/* Map placeholder */}
-                <div className="mt-6 bg-emerald-50 rounded-xl p-8 text-center border-2 border-dashed border-emerald-200">
-                  <p className="text-emerald-600 font-medium">🗺️ Interactive Map</p>
-                  <p className="text-sm text-emerald-500">
-                    Lat: {mockMosque.latitude}, Lng: {mockMosque.longitude}
-                  </p>
+                {/* Interactive Map */}
+                <div className="mt-6">
+                  <MosqueMap
+                    latitude={mockMosque.latitude}
+                    longitude={mockMosque.longitude}
+                    name={mockMosque.name}
+                    address={`${mockMosque.address}, ${mockMosque.city}`}
+                  />
                 </div>
               </div>
 
@@ -362,6 +366,9 @@ export default function MasjidProfilePage() {
                 balance={270000}
                 totalDonations={1050000}
               />
+
+              {/* Financial Charts */}
+              <FinancialCharts />
 
               {/* Expenses Table */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
